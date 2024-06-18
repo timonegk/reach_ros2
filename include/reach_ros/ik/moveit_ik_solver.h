@@ -21,6 +21,8 @@
 #include <vector>
 #include <moveit_msgs/msg/planning_scene.hpp>
 #include <functional>
+#include <visualization_msgs/msg/marker.hpp>
+#include <tf2/LinearMath/Vector3.h>
 
 namespace moveit
 {
@@ -54,6 +56,7 @@ public:
   std::vector<std::string> getJointNames() const override;
 
   void setTouchLinks(const std::vector<std::string>& touch_links);
+  void setHolePosition(const tf2::Vector3 hole_position);
   void addCollisionMesh(const std::string& collision_mesh_filename, const std::string& collision_mesh_frame);
   std::string getKinematicBaseFrame() const;
 
@@ -64,9 +67,11 @@ protected:
   moveit::core::RobotModelConstPtr model_;
   const moveit::core::JointModelGroup* jmg_;
   const double distance_threshold_;
+  std::optional<tf2::Vector3> hole_position_;
 
   planning_scene::PlanningScenePtr scene_;
   rclcpp::Publisher<moveit_msgs::msg::PlanningScene>::SharedPtr scene_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr hole_pub_;
 
   static std::string COLLISION_OBJECT_NAME;
 };

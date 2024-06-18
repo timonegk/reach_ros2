@@ -54,6 +54,7 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
 
   scene_pub_ =
       reach_ros::utils::getNodeInstance()->create_publisher<moveit_msgs::msg::PlanningScene>("planning_scene", 1);
+  hole_pub_ = reach_ros::utils::getNodeInstance()->create_publisher<visualization_msgs::msg::Marker>("hole", 1);
   moveit_msgs::msg::PlanningScene scene_msg;
   scene_->getPlanningSceneMsg(scene_msg);
   scene_pub_->publish(scene_msg);
@@ -101,6 +102,24 @@ std::vector<std::string> MoveItIKSolver::getJointNames() const
   return jmg_->getActiveJointModelNames();
 }
 
+void MoveItIKSolver::setHolePosition(const tf2::Vector3 hole_position)
+{
+  hole_position_ = hole_position;
+  visualization_msgs::msg::Marker m;
+  m.header.frame_id = "base_link";
+  m.ns = "hole";
+  m.type = visualization_msgs::msg::Marker::SPHERE;
+  m.color.r = 1.0;
+  m.color.a = 1.0;
+  m.pose.position.x = hole_position.x();
+  m.pose.position.y = hole_position.y();
+  m.pose.position.z = hole_position.z();
+  m.scale.x = 0.01;
+  m.scale.y = 0.01;
+  m.scale.z = 0.01;
+  hole_pub_->publish(m);
+}
+
 void MoveItIKSolver::addCollisionMesh(const std::string& collision_mesh_filename,
                                       const std::string& collision_mesh_frame)
 {
@@ -129,6 +148,7 @@ reach::IKSolver::ConstPtr MoveItIKSolverFactory::create(const YAML::Node& config
 {
   auto planning_group = reach::get<std::string>(config, "planning_group");
   auto dist_threshold = reach::get<double>(config, "distance_threshold");
+  auto hole_position = reach::get<std::vector<double>>(config, "hole_position");
 
   moveit::core::RobotModelConstPtr model =
       moveit::planning_interface::getSharedRobotModel(reach_ros::utils::getNodeInstance(), "robot_description");
@@ -136,6 +156,10 @@ reach::IKSolver::ConstPtr MoveItIKSolverFactory::create(const YAML::Node& config
     throw std::runtime_error("Failed to initialize robot model pointer");
 
   auto ik_solver = std::make_shared<MoveItIKSolver>(model, planning_group, dist_threshold);
+  if (!hole_position.empty())
+  {
+    ik_solver->setHolePosition(tf2::Vector3(hole_position[0], hole_position[1], hole_position[2]));
+  }
 
   // Optionally add a collision mesh
   const std::string collision_mesh_filename_key = "collision_mesh_filename";
