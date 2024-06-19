@@ -27,7 +27,8 @@ set(ROS2_DEPS
     moveit_ros_planning_interface
     rclcpp
     sensor_msgs
-    visualization_msgs)
+    visualization_msgs
+    bio_ik)
 
 find_package(ament_cmake REQUIRED)
 foreach(dep ${ROS2_DEPS})

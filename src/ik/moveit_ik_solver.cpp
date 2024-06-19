@@ -21,6 +21,7 @@
 #include <reach/plugin_utils.h>
 #include <reach/utils.h>
 #include <yaml-cpp/yaml.h>
+#include <bio_ik/bio_ik.h>
 
 namespace
 {
@@ -71,9 +72,15 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
   state.setJointGroupPositions(jmg_, seed_subset);
   state.update();
 
+  bio_ik::BioIKKinematicsQueryOptions options;
+  if (hole_position_)
+  {
+    options.goals.emplace_back(new bio_ik::GoThroughGoal(hole_position_.value(), 1.0));
+  }
+
   if (state.setFromIK(jmg_, target, 0.0,
                       std::bind(&MoveItIKSolver::isIKSolutionValid, this, std::placeholders::_1, std::placeholders::_2,
-                                std::placeholders::_3)))
+                                std::placeholders::_3), options))
   {
     std::vector<double> solution;
     state.copyJointGroupPositions(jmg_, solution);
