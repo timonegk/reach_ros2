@@ -68,6 +68,10 @@ protected:
   const moveit::core::JointModelGroup* jmg_;
   const double distance_threshold_;
   std::optional<tf2::Vector3> hole_position_;
+  bool use_rcm_{false};
+  bool use_depth_{false};
+  bool use_collision_distance_{false};
+  std::string solver_name_;
 
   planning_scene::PlanningScenePtr scene_;
   rclcpp::Publisher<moveit_msgs::msg::PlanningScene>::SharedPtr scene_pub_;

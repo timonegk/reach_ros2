@@ -22,6 +22,7 @@
 #include <reach/utils.h>
 #include <yaml-cpp/yaml.h>
 #include <bio_ik/bio_ik.h>
+#include <relaxed_ik/relaxed_ik_kinematics_query_options.hpp>
 
 namespace
 {
@@ -59,6 +60,28 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   moveit_msgs::msg::PlanningScene scene_msg;
   scene_->getPlanningSceneMsg(scene_msg);
   scene_pub_->publish(scene_msg);
+  auto node = reach_ros::utils::getNodeInstance();
+  std::string solver = node->get_parameter("robot_description_kinematics." + planning_group + ".kinematics_solver").as_string();
+  solver_name_ = solver.substr(0, solver.find("/"));
+  std::cout << "Solver is " << solver_name_ << std::endl;
+  if (node->has_parameter("reach_ros.use_rcm")) {
+	  auto param = node->get_parameter("reach_ros.use_rcm");
+	  if (param.as_bool()) {
+		  use_rcm_ = true;
+	  }
+  }
+  if (node->has_parameter("reach_ros.use_depth")) {
+    auto param = node->get_parameter("reach_ros.use_depth");
+    if (param.as_bool()) {
+      use_depth_ = true;
+    }
+  }
+  if (node->has_parameter("reach_ros.use_collision_distance")) {
+    auto param = node->get_parameter("reach_ros.use_collision_distance");
+    if (param.as_bool()) {
+      use_collision_distance_ = true;
+    }
+  }
 }
 
 std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target,
@@ -72,15 +95,75 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
   state.setJointGroupPositions(jmg_, seed_subset);
   state.update();
 
-  bio_ik::BioIKKinematicsQueryOptions options;
-  if (hole_position_)
+  auto options = std::make_shared<kinematics::KinematicsQueryOptions>();
+  auto bio_ik_options = std::make_shared<bio_ik::BioIKKinematicsQueryOptions>();
+  auto relaxed_ik_options = std::make_shared<relaxed_ik::RelaxedIKKinematicsQueryOptions>();
+  if (solver_name_ == "bio_ik")
   {
-    options.goals.emplace_back(new bio_ik::GoThroughGoal(hole_position_.value(), 1.0));
+    if (hole_position_ && use_rcm_)
+    {
+      bio_ik_options->goals.emplace_back(new bio_ik::RCMGoal(hole_position_.value(), 1.0));
+    }
+    if (use_depth_)
+    {
+      kinematics::KinematicsBase::IKCostFn depth_fn =
+          [this](const geometry_msgs::msg::Pose&, const moveit::core::RobotState& robot_state,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            collision_detection::CollisionRequest req;
+            req.contacts = true;
+            collision_detection::CollisionResult res;
+            scene_->checkCollision(req, res, robot_state);
+            double penetration_depth = 0;
+            for (const auto& [link_names, contacts] : res.contacts)
+            {
+              for (const auto& contact : contacts)
+              {
+                penetration_depth += contact.depth;
+              }
+            }
+            return penetration_depth;
+          };
+      const geometry_msgs::msg::Pose p;
+      bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, depth_fn, model_));
+    }
+    if (use_collision_distance_)
+    {
+      kinematics::KinematicsBase::IKCostFn collision_distance_fn =
+          [this](const geometry_msgs::msg::Pose&, const moveit::core::RobotState& robot_state,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            collision_detection::AllowedCollisionMatrix acm;
+            acm.setDefaultEntry("ee_link", true);
+            double distance = scene_->distanceToCollision(robot_state, acm);
+            double penalty_cutoff = 0.01;
+            // distance cost is 1 if distance == penalty_cutoff
+            double distance_cost = std::pow(2 * penalty_cutoff / (distance + penalty_cutoff), 2);
+            return distance_cost;
+          };
+      const geometry_msgs::msg::Pose p;
+      bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, collision_distance_fn, model_));
+    }
+    options = bio_ik_options;
+  }
+  else if (solver_name_ == "relaxed_ik") {
+    relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEPosGoals>(), 1.0);
+    relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEQuatGoals>(), 1.0);
+    if (hole_position_ && use_rcm_) {
+      relaxed_ik_options->objectives_.emplace_back(
+          std::make_shared<relaxed_ik::RCMGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
+             1.0);
+    }
+    if (use_depth_) {
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth>(scene_), 1.0);
+    }
+    if (use_collision_distance_) {
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDistance>(scene_), 1.0);
+    }
+    options = relaxed_ik_options;
   }
 
   if (state.setFromIK(jmg_, target, 0.0,
                       std::bind(&MoveItIKSolver::isIKSolutionValid, this, std::placeholders::_1, std::placeholders::_2,
-                                std::placeholders::_3), options))
+                                std::placeholders::_3), *options))
   {
     std::vector<double> solution;
     state.copyJointGroupPositions(jmg_, solution);
@@ -155,7 +238,6 @@ reach::IKSolver::ConstPtr MoveItIKSolverFactory::create(const YAML::Node& config
 {
   auto planning_group = reach::get<std::string>(config, "planning_group");
   auto dist_threshold = reach::get<double>(config, "distance_threshold");
-  auto hole_position = reach::get<std::vector<double>>(config, "hole_position");
 
   moveit::core::RobotModelConstPtr model =
       moveit::planning_interface::getSharedRobotModel(reach_ros::utils::getNodeInstance(), "robot_description");
@@ -163,9 +245,13 @@ reach::IKSolver::ConstPtr MoveItIKSolverFactory::create(const YAML::Node& config
     throw std::runtime_error("Failed to initialize robot model pointer");
 
   auto ik_solver = std::make_shared<MoveItIKSolver>(model, planning_group, dist_threshold);
-  if (!hole_position.empty())
+  if (config["hole_position"].IsDefined())
   {
-    ik_solver->setHolePosition(tf2::Vector3(hole_position[0], hole_position[1], hole_position[2]));
+    auto hole_position = reach::get<std::vector<double>>(config, "hole_position");
+    if (!hole_position.empty())
+    {
+      ik_solver->setHolePosition(tf2::Vector3(hole_position[0], hole_position[1], hole_position[2]));
+    }
   }
 
   // Optionally add a collision mesh

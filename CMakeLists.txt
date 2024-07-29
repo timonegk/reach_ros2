@@ -28,7 +28,9 @@ set(ROS2_DEPS
     rclcpp
     sensor_msgs
     visualization_msgs
-    bio_ik)
+    bio_ik
+    relaxed_ik_cpp
+)
 
 find_package(ament_cmake REQUIRED)
 foreach(dep ${ROS2_DEPS})
