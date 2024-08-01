@@ -57,6 +57,7 @@ public:
 
   void setTouchLinks(const std::vector<std::string>& touch_links);
   void setHolePosition(const tf2::Vector3 hole_position);
+  void setHoleAxis(const tf2::Vector3 hole_position);
   void addCollisionMesh(const std::string& collision_mesh_filename, const std::string& collision_mesh_frame);
   std::string getKinematicBaseFrame() const;
 
@@ -68,7 +69,9 @@ protected:
   const moveit::core::JointModelGroup* jmg_;
   const double distance_threshold_;
   std::optional<tf2::Vector3> hole_position_;
+  std::optional<tf2::Vector3> hole_axis_;
   bool use_rcm_{false};
+  bool use_line_goal_{false};
   bool use_depth_{false};
   bool use_collision_distance_{false};
   std::string solver_name_;

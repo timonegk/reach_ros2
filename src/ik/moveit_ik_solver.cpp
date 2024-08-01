@@ -70,6 +70,12 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
 		  use_rcm_ = true;
 	  }
   }
+  if (node->has_parameter("reach_ros.use_line_goal")) {
+    auto param = node->get_parameter("reach_ros.use_line_goal");
+    if (param.as_bool()) {
+      use_line_goal_ = true;
+    }
+  }
   if (node->has_parameter("reach_ros.use_depth")) {
     auto param = node->get_parameter("reach_ros.use_depth");
     if (param.as_bool()) {
@@ -103,6 +109,10 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     if (hole_position_ && use_rcm_)
     {
       bio_ik_options->goals.emplace_back(new bio_ik::RCMGoal(hole_position_.value(), 1.0));
+    }
+    if (hole_position_ && hole_axis_ && use_line_goal_) {
+      bio_ik_options->goals.emplace_back(new bio_ik::LineGoal("endo_first_link", hole_position_.value(),
+                                                              hole_axis_.value(), 1.0));
     }
     if (use_depth_)
     {
@@ -152,6 +162,14 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
           std::make_shared<relaxed_ik::RCMGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
              1.0);
     }
+    if (hole_position_ && hole_axis_ && use_line_goal_) {
+      relaxed_ik_options->objectives_.emplace_back(
+          std::make_shared<relaxed_ik::LineGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(),
+                                                              hole_position_->z()),
+                                                 Eigen::Vector3d(hole_axis_->x(), hole_axis_->y(), hole_axis_->z()),
+                                                 "endo_first_link"),
+          1.0);
+    }
     if (use_depth_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth>(scene_), 1.0);
     }
@@ -190,6 +208,10 @@ bool MoveItIKSolver::isIKSolutionValid(moveit::core::RobotState* state, const mo
 std::vector<std::string> MoveItIKSolver::getJointNames() const
 {
   return jmg_->getActiveJointModelNames();
+}
+
+void MoveItIKSolver::setHoleAxis(const tf2::Vector3 hole_axis) {
+  hole_axis_ = hole_axis;
 }
 
 void MoveItIKSolver::setHolePosition(const tf2::Vector3 hole_position)
@@ -251,6 +273,14 @@ reach::IKSolver::ConstPtr MoveItIKSolverFactory::create(const YAML::Node& config
     if (!hole_position.empty())
     {
       ik_solver->setHolePosition(tf2::Vector3(hole_position[0], hole_position[1], hole_position[2]));
+    }
+  }
+  if (config["hole_axis"].IsDefined())
+  {
+    auto hole_axis = reach::get<std::vector<double>>(config, "hole_axis");
+    if (!hole_axis.empty())
+    {
+      ik_solver->setHoleAxis(tf2::Vector3(hole_axis[0], hole_axis[1], hole_axis[2]));
     }
   }
 
