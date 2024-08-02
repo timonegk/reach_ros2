@@ -63,7 +63,6 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   auto node = reach_ros::utils::getNodeInstance();
   std::string solver = node->get_parameter("robot_description_kinematics." + planning_group + ".kinematics_solver").as_string();
   solver_name_ = solver.substr(0, solver.find("/"));
-  std::cout << "Solver is " << solver_name_ << std::endl;
   if (node->has_parameter("reach_ros.use_rcm")) {
 	  auto param = node->get_parameter("reach_ros.use_rcm");
 	  if (param.as_bool()) {
@@ -74,6 +73,13 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
     auto param = node->get_parameter("reach_ros.use_line_goal");
     if (param.as_bool()) {
       use_line_goal_ = true;
+    }
+  }
+  if (node->has_parameter("reach_ros.use_line_alignment")) {
+    auto param = node->get_parameter("reach_ros.use_line_alignment");
+    if (param.as_bool()) {
+      use_line_goal_ = true;
+      use_line_alignment_ = true;
     }
   }
   if (node->has_parameter("reach_ros.use_depth")) {
@@ -113,6 +119,9 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     if (hole_position_ && hole_axis_ && use_line_goal_) {
       bio_ik_options->goals.emplace_back(new bio_ik::LineGoal("endo_first_link", hole_position_.value(),
                                                               hole_axis_.value(), 1.0));
+      if (use_line_alignment_) {
+        bio_ik_options->goals.emplace_back(new bio_ik::DirectionGoal("endo_first_link", tf2::Vector3(0, 1, 0), hole_axis_.value(), 1.0));
+      }
     }
     if (use_depth_)
     {
@@ -169,6 +178,15 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
                                                  Eigen::Vector3d(hole_axis_->x(), hole_axis_->y(), hole_axis_->z()),
                                                  "endo_first_link"),
           1.0);
+      if (use_line_alignment_) {
+        relaxed_ik_options->objectives_.emplace_back(
+          std::make_shared<relaxed_ik::AlignmentGoal>(Eigen::Vector3d(
+                                                            hole_axis_->x(),
+                                                            hole_axis_->y(),
+                                                            hole_axis_->z()),
+                                                 "endo_first_link"),
+          1.0);
+      }
     }
     if (use_depth_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth>(scene_), 1.0);

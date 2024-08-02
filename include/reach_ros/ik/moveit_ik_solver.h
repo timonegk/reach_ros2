@@ -72,6 +72,7 @@ protected:
   std::optional<tf2::Vector3> hole_axis_;
   bool use_rcm_{false};
   bool use_line_goal_{false};
+  bool use_line_alignment_{false};
   bool use_depth_{false};
   bool use_collision_distance_{false};
   std::string solver_name_;
