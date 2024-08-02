@@ -107,6 +107,8 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
   state.setJointGroupPositions(jmg_, seed_subset);
   state.update();
 
+  solution_callback_count_ = 0;
+
   auto options = std::make_shared<kinematics::KinematicsQueryOptions>();
   auto bio_ik_options = std::make_shared<bio_ik::BioIKKinematicsQueryOptions>();
   auto relaxed_ik_options = std::make_shared<relaxed_ik::RelaxedIKKinematicsQueryOptions>();
@@ -213,6 +215,7 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
 bool MoveItIKSolver::isIKSolutionValid(moveit::core::RobotState* state, const moveit::core::JointModelGroup* jmg,
                                        const double* ik_solution) const
 {
+  solution_callback_count_++;
   state->setJointGroupPositions(jmg, ik_solution);
   state->update();
 
