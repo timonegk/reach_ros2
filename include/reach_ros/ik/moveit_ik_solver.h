@@ -75,6 +75,7 @@ protected:
   bool use_line_alignment_{false};
   bool use_depth_{false};
   bool use_collision_distance_{false};
+  bool use_empty_cost_fn_{false};
   std::string solver_name_;
 
   planning_scene::PlanningScenePtr scene_;

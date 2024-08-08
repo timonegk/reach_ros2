@@ -94,6 +94,12 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
       use_collision_distance_ = true;
     }
   }
+  if (node->has_parameter("reach_ros.empty_cost_fn")) {
+    auto param = node->get_parameter("reach_ros.empty_cost_fn");
+    if (param.as_bool()) {
+      use_empty_cost_fn_ = true;
+    }
+  }
 }
 
 std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target,
@@ -163,6 +169,17 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
       const geometry_msgs::msg::Pose p;
       bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, collision_distance_fn, model_));
     }
+    if (use_empty_cost_fn_)
+    {
+      kinematics::KinematicsBase::IKCostFn empty_cost_fn =
+          [](const geometry_msgs::msg::Pose&, const moveit::core::RobotState&,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            return 0.0;
+          };
+      const geometry_msgs::msg::Pose p;
+      bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, empty_cost_fn, model_));
+    }
+
     options = bio_ik_options;
   }
   else if (solver_name_ == "relaxed_ik") {
@@ -195,6 +212,15 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     }
     if (use_collision_distance_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDistance>(scene_), 1.0);
+    }
+    if (use_empty_cost_fn_) {
+      kinematics::KinematicsBase::IKCostFn empty_cost_fn =
+          [](const geometry_msgs::msg::Pose&, const moveit::core::RobotState&,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            return 0.0;
+          };
+      const geometry_msgs::msg::Pose p;
+	    relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::IKCostFnGoal>(p, empty_cost_fn), 1.0);
     }
     options = relaxed_ik_options;
   }
