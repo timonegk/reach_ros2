@@ -63,43 +63,14 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   auto node = reach_ros::utils::getNodeInstance();
   std::string solver = node->get_parameter("robot_description_kinematics." + planning_group + ".kinematics_solver").as_string();
   solver_name_ = solver.substr(0, solver.find("/"));
-  if (node->has_parameter("reach_ros.use_rcm")) {
-	  auto param = node->get_parameter("reach_ros.use_rcm");
-	  if (param.as_bool()) {
-		  use_rcm_ = true;
-	  }
-  }
-  if (node->has_parameter("reach_ros.use_line_goal")) {
-    auto param = node->get_parameter("reach_ros.use_line_goal");
-    if (param.as_bool()) {
-      use_line_goal_ = true;
-    }
-  }
-  if (node->has_parameter("reach_ros.use_line_alignment")) {
-    auto param = node->get_parameter("reach_ros.use_line_alignment");
-    if (param.as_bool()) {
-      use_line_goal_ = true;
-      use_line_alignment_ = true;
-    }
-  }
-  if (node->has_parameter("reach_ros.use_depth")) {
-    auto param = node->get_parameter("reach_ros.use_depth");
-    if (param.as_bool()) {
-      use_depth_ = true;
-    }
-  }
-  if (node->has_parameter("reach_ros.use_collision_distance")) {
-    auto param = node->get_parameter("reach_ros.use_collision_distance");
-    if (param.as_bool()) {
-      use_collision_distance_ = true;
-    }
-  }
-  if (node->has_parameter("reach_ros.empty_cost_fn")) {
-    auto param = node->get_parameter("reach_ros.empty_cost_fn");
-    if (param.as_bool()) {
-      use_empty_cost_fn_ = true;
-    }
-  }
+  use_rcm_ = node->get_parameter_or("reach_ros.use_rcm", false);
+  use_line_goal_ = node->get_parameter_or("reach_ros.use_line_goal", false);
+  use_line_alignment_ = node->get_parameter_or("reach_ros.use_line_alignment", false);
+  if (use_line_alignment_) use_line_goal_ = true;
+  use_depth_ = node->get_parameter_or("reach_ros.use_depth", false);
+  use_collision_distance_ = node->get_parameter_or("reach_ros.use_collision_distance", false);
+  use_empty_cost_fn_ = node->get_parameter_or("reach_ros.empty_cost_fn", false);
+  use_empty_cost_fn2_ = node->get_parameter_or("reach_ros.empty_cost_fn2", false);
 }
 
 std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target,
@@ -178,6 +149,16 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
           };
       const geometry_msgs::msg::Pose p;
       bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, empty_cost_fn, model_));
+    }
+    if (use_empty_cost_fn2_)
+    {
+      kinematics::KinematicsBase::IKCostFn empty_cost_fn =
+          [](const geometry_msgs::msg::Pose&, const moveit::core::RobotState&,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            return 0.0;
+          };
+      const geometry_msgs::msg::Pose p;
+      bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal2(p, empty_cost_fn, model_));
     }
 
     options = bio_ik_options;
