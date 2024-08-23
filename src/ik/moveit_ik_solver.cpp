@@ -71,6 +71,8 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   use_collision_distance_ = node->get_parameter_or("reach_ros.use_collision_distance", false);
   use_collision_distance2_ = node->get_parameter_or("reach_ros.use_collision_distance2", false);
   use_empty_cost_fn_ = node->get_parameter_or("reach_ros.empty_cost_fn", false);
+  use_rcm2_ = node->get_parameter_or("reach_ros.use_rcm2", false);
+  use_rcm3_ = node->get_parameter_or("reach_ros.use_rcm3", false);
 }
 
 std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target,
@@ -94,6 +96,10 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     if (hole_position_ && use_rcm_)
     {
       bio_ik_options->goals.emplace_back(new bio_ik::RCMGoal(hole_position_.value(), 1.0));
+    }
+    if (hole_position_ && use_rcm3_)
+    {
+      bio_ik_options->goals.emplace_back(new bio_ik::RCMGoal3("endo_first_link", hole_position_.value(), 1.0));
     }
     if (hole_position_ && hole_axis_ && use_line_goal_) {
       bio_ik_options->goals.emplace_back(new bio_ik::LineGoal("endo_first_link", hole_position_.value(),
@@ -119,7 +125,8 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
                 penetration_depth += contact.depth;
               }
             }
-            return penetration_depth;
+            double cost = std::pow(penetration_depth / 0.05, 2);
+            return cost;
           };
       const geometry_msgs::msg::Pose p;
       bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, depth_fn, model_));
@@ -184,6 +191,11 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
           std::make_shared<relaxed_ik::RCMGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
              1.0);
     }
+    if (hole_position_ && use_rcm3_) {
+      relaxed_ik_options->objectives_.emplace_back(
+          std::make_shared<relaxed_ik::RCMGoal3>("endo_first_link", Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
+             1.0);
+    }
     if (hole_position_ && hole_axis_ && use_line_goal_) {
       relaxed_ik_options->objectives_.emplace_back(
           std::make_shared<relaxed_ik::LineGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(),
@@ -200,6 +212,12 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
                                                  "endo_first_link"),
           1.0);
       }
+    }
+    if (hole_position_ && use_rcm2_)
+    {
+      relaxed_ik_options->objectives_.emplace_back(
+          std::make_shared<relaxed_ik::RCMGoal2>(model_, Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
+             1.0);
     }
     if (use_depth_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth>(scene_), 1.0);
