@@ -68,6 +68,7 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   use_line_alignment_ = node->get_parameter_or("reach_ros.use_line_alignment", false);
   if (use_line_alignment_) use_line_goal_ = true;
   use_depth_ = node->get_parameter_or("reach_ros.use_depth", false);
+  use_depth2_ = node->get_parameter_or("reach_ros.use_depth2", false);
   use_collision_distance_ = node->get_parameter_or("reach_ros.use_collision_distance", false);
   use_collision_distance2_ = node->get_parameter_or("reach_ros.use_collision_distance2", false);
   use_empty_cost_fn_ = node->get_parameter_or("reach_ros.empty_cost_fn", false);
@@ -221,6 +222,9 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     }
     if (use_depth_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth>(scene_), 1.0);
+    }
+    if (use_depth2_) {
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDepth2>(scene_), 1.0);
     }
     if (use_collision_distance_) {
       relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::EnvCollisionDistance>(scene_), 1.0);
