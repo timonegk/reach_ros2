@@ -131,6 +131,40 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
       const geometry_msgs::msg::Pose p;
       bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, depth_fn, model_));
     }
+    if (use_depth2_)
+    {
+      kinematics::KinematicsBase::IKCostFn depth_fn =
+          [this](const geometry_msgs::msg::Pose&, const moveit::core::RobotState& robot_state,
+                 const moveit::core::JointModelGroup*, const std::vector<double>&) {
+            collision_detection::AllowedCollisionMatrix acm;
+            acm.setDefaultEntry("base_link_inertia", true);
+            acm.setDefaultEntry("shoulder_link", true);
+            acm.setDefaultEntry("upper_arm_link", true);
+            acm.setDefaultEntry("forearm_link", true);
+            acm.setDefaultEntry("wrist_1_link", true);
+            acm.setDefaultEntry("wrist_2_link", true);
+            acm.setDefaultEntry("wrist_3_link", true);
+            acm.setEntry("endo_box", "endo_first_link", true);
+            acm.setEntry("endo_first_link", "endo_second_link", true);
+            acm.setEntry("endo_second_link", "endo_third_link", true);
+            collision_detection::CollisionRequest req;
+            req.contacts = true;
+            collision_detection::CollisionResult res;
+            scene_->checkCollision(req, res, robot_state, acm);
+            double penetration_depth = 0;
+            for (const auto& [link_names, contacts] : res.contacts)
+            {
+              for (const auto& contact : contacts)
+              {
+                penetration_depth += contact.depth;
+              }
+            }
+            double cost = std::pow(penetration_depth / 0.05, 2);
+            return cost;
+          };
+      const geometry_msgs::msg::Pose p;
+      bio_ik_options->goals.emplace_back(new bio_ik::IKCostFnGoal(p, depth_fn, model_));
+    }
     if (use_collision_distance_)
     {
       kinematics::KinematicsBase::IKCostFn collision_distance_fn =
