@@ -80,6 +80,9 @@ protected:
   bool use_collision_distance_{false};
   bool use_collision_distance2_{false};
   bool use_empty_cost_fn_{false};
+  bool scan_goal_{false};
+  bool scan_with_offset_{false};
+  bool scan_swamp_{false};
   std::string solver_name_;
 
   planning_scene::PlanningScenePtr scene_;

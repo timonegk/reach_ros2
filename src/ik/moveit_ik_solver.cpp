@@ -71,13 +71,17 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   use_collision_distance_ = node->get_parameter_or("reach_ros.use_collision_distance", false);
   use_collision_distance2_ = node->get_parameter_or("reach_ros.use_collision_distance2", false);
   use_empty_cost_fn_ = node->get_parameter_or("reach_ros.empty_cost_fn", false);
+  scan_goal_ = node->get_parameter_or("reach_ros.scan_goal", false);
+  scan_with_offset_ = node->get_parameter_or("reach_ros.scan_with_offset", false);
+  scan_swamp_ = node->get_parameter_or("reach_ros.scan_swamp", false);
   use_rcm2_ = node->get_parameter_or("reach_ros.use_rcm2", false);
   use_rcm3_ = node->get_parameter_or("reach_ros.use_rcm3", false);
 }
 
-std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target,
+std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d& target_,
                                                          const std::map<std::string, double>& seed) const
 {
+  Eigen::Isometry3d target(target_);
   moveit::core::RobotState state(model_);
 
   const std::vector<std::string>& joint_names = jmg_->getActiveJointModelNames();
@@ -93,6 +97,23 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
   auto relaxed_ik_options = std::make_shared<relaxed_ik::RelaxedIKKinematicsQueryOptions>();
   if (solver_name_ == "bio_ik")
   {
+    tf2::Vector3 position{target.translation().x(), target.translation().y(), target.translation().z()};
+    Eigen::Quaterniond q(target.rotation());
+    tf2::Quaternion orientation(q.x(), q.y(), q.z(), q.w());
+
+    if (scan_goal_) {
+      bio_ik_options->replace = true;
+      bio_ik_options->goals.emplace_back(new bio_ik::ScanGoal("end_effector", position, orientation, 1.0));
+    }
+    if (scan_swamp_) {
+      bio_ik_options->replace = true;
+      bio_ik_options->goals.emplace_back(new bio_ik::ScanSwampGoal("end_effector", position, orientation, 1.0));
+    }
+    if (scan_with_offset_) {
+      Eigen::Vector3d offset{0.0, 0.0, 0.01};
+      target.translate(-offset);
+    }
+
     if (hole_position_ && use_rcm_)
     {
       bio_ik_options->goals.emplace_back(new bio_ik::RCMGoal(hole_position_.value(), 1.0));
