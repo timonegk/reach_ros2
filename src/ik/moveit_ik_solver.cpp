@@ -66,6 +66,7 @@ MoveItIKSolver::MoveItIKSolver(moveit::core::RobotModelConstPtr model, const std
   use_rcm_ = node->get_parameter_or("reach_ros.use_rcm", false);
   use_line_goal_ = node->get_parameter_or("reach_ros.use_line_goal", false);
   use_line_alignment_ = node->get_parameter_or("reach_ros.use_line_alignment", false);
+  use_look_at_ = node->get_parameter_or("reach_ros.use_look_at", false);
   use_depth_ = node->get_parameter_or("reach_ros.use_depth", false);
   use_depth2_ = node->get_parameter_or("reach_ros.use_depth2", false);
   use_collision_distance_ = node->get_parameter_or("reach_ros.use_collision_distance", false);
@@ -128,6 +129,9 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     }
     if (hole_axis_ && use_line_alignment_) {
       bio_ik_options->goals.emplace_back(new bio_ik::DirectionGoal("endo_first_link", tf2::Vector3(0, 1, 0), hole_axis_.value(), 1.0));
+    }
+    if (hole_position_ && use_look_at_) {
+      bio_ik_options->goals.emplace_back(new bio_ik::LookAtGoal("endo_first_link", tf2::Vector3(0, 1, 0), hole_position_.value(), 1.0));
     }
     if (use_depth_)
     {

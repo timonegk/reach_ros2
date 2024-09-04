@@ -75,6 +75,7 @@ protected:
   bool use_rcm3_{false};
   bool use_line_goal_{false};
   bool use_line_alignment_{false};
+  bool use_look_at_{false};
   bool use_depth_{false};
   bool use_depth2_{false};
   bool use_collision_distance_{false};
