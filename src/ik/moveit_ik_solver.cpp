@@ -243,8 +243,12 @@ std::vector<std::vector<double>> MoveItIKSolver::solveIK(const Eigen::Isometry3d
     options = bio_ik_options;
   }
   else if (solver_name_ == "relaxed_ik") {
-    relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEPosGoals>(), 1.0);
-    relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEQuatGoals>(), 1.0);
+    if (scan_goal_) {
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::ScanGoal>(), 1.0);
+    } else {
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEPosGoals>(), 1.0);
+      relaxed_ik_options->objectives_.emplace_back(std::make_shared<relaxed_ik::MatchEEQuatGoals>(), 1.0);
+    }
     if (hole_position_ && use_rcm_) {
       relaxed_ik_options->objectives_.emplace_back(
           std::make_shared<relaxed_ik::RCMGoal>(Eigen::Vector3d(hole_position_->x(), hole_position_->y(), hole_position_->z())),
